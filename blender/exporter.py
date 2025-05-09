@@ -984,7 +984,7 @@ class AnmXfbinExporter:
 			track_header.key_format = NuccAnmKeyFormat.ColorRGBTable
 			
 			for i in range(int(frame_end)):
-				converted_value = convert_light_values("xfbin_scene.lightdir_color", lightdirc.data.color)
+				converted_value = convert_light_values("xfbin_scene.lightdir_color", bpy.context.scene.xfbin_scene.lightdir_color, NuccAnmKeyFormat.ColorRGBTable)
 				track.keys.append(converted_value)
     
 			while len(track.keys) % 4 != 0:
@@ -1000,7 +1000,7 @@ class AnmXfbinExporter:
 			entry.track_headers.append(header)
 		else:
 			# create a single keyframe and take the default value
-			track, header = create_single_frame_track("xfbin_scene.lightdir_intensity", NuccAnmKeyFormat.FloatFixed, 1, [lightdirc.data.energy])
+			track, header = create_single_frame_track("xfbin_scene.lightdir_intensity", NuccAnmKeyFormat.FloatFixed, 1, [bpy.context.scene.xfbin_scene.lightdir_intensity])
 			entry.tracks.append(track)
 			entry.track_headers.append(header)
    
