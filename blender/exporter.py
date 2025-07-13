@@ -276,8 +276,11 @@ class AnmXfbinExporter:
 		for index, clump_props in enumerate(anm_chunk.anm_clumps):
 			arm_obj: Armature = bpy.data.objects.get(clump_props.name)
 
-			if not arm_obj or not arm_obj.animation_data:
+			if not arm_obj:
 				continue
+			
+			if not arm_obj.animation_data:
+				arm_obj.animation_data_create()
 
 			action_name = anm_chunk.name if index == 0 else arm_obj.animation_data.action.name
 			action = bpy.data.actions.get(action_name)
@@ -328,13 +331,15 @@ class AnmXfbinExporter:
 
 			property_name = fcurve.data_path.split('.')[-1]
 			if fcurve_dict[bone_name].get(property_name):
-				fcurve_dict[bone_name][property_name][fcurve.array_index] = fcurve
+				try:
+					fcurve_dict[bone_name][property_name][fcurve.array_index] = fcurve
+				except IndexError:
+					print(f"Error: {bone_name} {property_name} {fcurve.array_index} - {fcurve.data_path}")
 
-					
 		for armature in anm_armatures:
 			anm.entries.extend(self.make_coord_entries(armature, struct_references, anm.clumps, fcurve_dict))
 			if self.export_materials:
-				anm.entries.extend(self.make_material_entries(armature, struct_references, anm.clumps))
+				anm.entries.extend(self.make_material_entries(armature, action, struct_references, anm.clumps))
 
 
 		if anm_chunk.cameras:
@@ -590,7 +595,7 @@ class AnmXfbinExporter:
 		return entries
 
 
-	def make_material_entries(self, anm_armature: AnmArmature, struct_references: List[NuccStructReference], clumps: List[AnmClump]) -> List[AnmEntry]:
+	def make_material_entries(self, anm_armature: AnmArmature, action: bpy.types.Action, struct_references: List[NuccStructReference], clumps: List[AnmClump]) -> List[AnmEntry]:
 		context = bpy.context
 
 		entries: List[AnmEntry] = list()
@@ -627,9 +632,19 @@ class AnmXfbinExporter:
 				continue
 
 			if not material.animation_data:
-				continue
+				material.animation_data_create()
 			
-			if not material.animation_data.action:
+			#assign the current action to it
+			material.animation_data.action = action
+			material_slot = None
+			# find the correct slot. it should end with the material name
+			for slot in material.animation_data.action_suitable_slots:
+				if slot.name_display == material_name or slot.identifier.endswith(material_name):
+					material_slot = material.animation_data.action_slot = slot
+					break
+			
+			if not material_slot:
+				self.operator.report({'WARNING'}, f'Material {material_name} does not have an action slot assigned. Skipping material animation export.')
 				continue
 
 
@@ -679,7 +694,7 @@ class AnmXfbinExporter:
 			entry.coord = AnmCoord(clump_index, material_index)
 			entry.entry_format = EntryFormat.Material
    
-			for fcurve in material.animation_data.action.fcurves:
+			for fcurve in material.animation_data.action.layers[0].strips[0].channelbag(material_slot).fcurves:
 				for path in material_fcurves.keys():
 					if fcurve.data_path.endswith(path):
 						fcurve_count_dict[path] += 1
